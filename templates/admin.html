@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لائحة الحضور — فضاء الإدارة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Markazi+Text:wght@500;600;700&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+
+<header class="admin-header">
+  <div class="admin-header__inner">
+    <h1 class="admin-header__title">لائحة الحضور</h1>
+    <div class="admin-header__actions">
+      <a href="{{ url_for('admin_export') }}" class="btn btn--gold">تحميل CSV</a>
+      <a href="{{ url_for('index') }}" class="btn btn--ghost">الصفحة الرئيسية</a>
+      <a href="{{ url_for('admin_logout') }}" class="btn btn--ghost">خروج</a>
+    </div>
+  </div>
+</header>
+
+<main class="admin-main">
+
+  <div class="admin-stats">
+    <div class="admin-stat-card">
+      <span class="admin-stat-card__value">{{ total }}</span>
+      <span class="admin-stat-card__label">إجمالي المسجَّلين</span>
+    </div>
+    {% for workshop, count in workshop_counts.items() %}
+    <div class="admin-stat-card">
+      <span class="admin-stat-card__value">{{ count }}</span>
+      <span class="admin-stat-card__label">{{ workshop }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if rows %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          {% for h in headers %}
+          <th>{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          {% for cell in row %}
+          <td>{{ cell }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="admin-empty">لا يوجد مسجَّلون بعد.</p>
+  {% endif %}
+
+</main>
+</body>
+</html>

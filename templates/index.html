@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>يوم دراسي — مرحلة الدعم المكثف بالمدارس الرائدة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Markazi+Text:wght@500;600;700&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<header class="navbar" id="navbar">
+  <div class="navbar__inner">
+    <div class="navbar__brand">
+      <img src="{{ url_for('static', filename='images/logo_academy.jpg') }}" alt="شعار الأكاديمية الجهوية" class="navbar__logo">
+      <span class="navbar__brand-text">يوم دراسي</span>
+    </div>
+    <button class="navbar__toggle" id="navToggle" aria-label="فتح القائمة">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="navbar__links" id="navLinks">
+      <a href="#home" class="nav-link active" data-section="home">الرئيسية</a>
+      <a href="#program" class="nav-link" data-section="program">البرنامج</a>
+      <a href="#gallery" class="nav-link" data-section="gallery">الميدان</a>
+      <a href="#speakers" class="nav-link" data-section="speakers">المتدخلون</a>
+      <a href="#register" class="nav-link" data-section="register">التسجيل</a>
+    </nav>
+    <img src="{{ url_for('static', filename='images/logo_ministry.jpg') }}" alt="شعار وزارة التربية الوطنية" class="navbar__logo navbar__logo--ministry">
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section id="home" class="hero">
+    <div class="hero__bg-photo" style="background-image: url('{{ url_for('static', filename='images/training2.jpg') }}');"></div>
+    <div class="hero__bg-shape"></div>
+    <div class="hero__content">
+      <p class="hero__eyebrow">{{ event_directorate }}</p>
+      <div class="hero__title-box">
+        <h1 class="hero__title">مرحلة الدعم المكثف بالمدارس الرائدة</h1>
+      </div>
+      <p class="hero__subtitle">من التشخيص الموضعي إلى تجديد الممارسات الصفية لتحقيق الجودة</p>
+      <p class="hero__meta">نموذج: المدرسة الجماعاتية أبي الحسن الشاذلي — سنتان من الممارسة بالعالم القروي</p>
+
+      <div class="countdown" id="countdown" data-event="{{ event_date_iso }}">
+        <div class="countdown__item">
+          <span class="countdown__value" id="cd-days">00</span>
+          <span class="countdown__label">يوم</span>
+        </div>
+        <div class="countdown__item">
+          <span class="countdown__value" id="cd-hours">00</span>
+          <span class="countdown__label">ساعة</span>
+        </div>
+        <div class="countdown__item">
+          <span class="countdown__value" id="cd-minutes">00</span>
+          <span class="countdown__label">دقيقة</span>
+        </div>
+        <div class="countdown__item">
+          <span class="countdown__value" id="cd-seconds">00</span>
+          <span class="countdown__label">ثانية</span>
+        </div>
+      </div>
+      <p class="hero__location">📍 {{ event_location }}</p>
+      <a href="#register" class="btn btn--gold">سجّل مشاركتك</a>
+
+      <p class="hero__note">
+        دعوة للمشاركة بمقترحات ومواضيع بحثية ميدانية — آخر أجل للإرسال: {{ proposals_deadline }}
+        · للتواصل عبر واتساب: {{ contact_phone }}
+      </p>
+    </div>
+  </section>
+
+  <!-- PROGRAM -->
+  <section id="program" class="section section--light">
+    <div class="section__inner">
+      <h2 class="section__title">برنامج اليوم الدراسي</h2>
+      <p class="section__intro">فقرات اليوم مرتبة زمنيًا من الاستقبال إلى التقييم الختامي.</p>
+
+      <ol class="timeline">
+        {% for item in program %}
+        <li class="timeline__item">
+          <div class="timeline__time">{{ item.time }}</div>
+          <div class="timeline__dot"></div>
+          <div class="timeline__content">
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.desc }}</p>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </section>
+
+  <!-- GALLERY -->
+  <section id="gallery" class="section section--light">
+    <div class="section__inner">
+      <h2 class="section__title">لمحات من التكوينات والممارسة الصفية</h2>
+      <p class="section__intro">صور من التكوينات الميدانية والممارسة الصفية بمؤسسات الريادة.</p>
+
+      <div class="gallery-grid">
+        {% for g in gallery %}
+        <figure class="gallery-item">
+          <img src="{{ url_for('static', filename='images/' ~ g.file) }}" alt="{{ g.caption }}">
+          <figcaption>{{ g.caption }}</figcaption>
+        </figure>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- SPEAKERS -->
+  <section id="speakers" class="section section--navy">
+    <div class="section__inner">
+      <h2 class="section__title section__title--on-navy">المتدخلون</h2>
+      <p class="section__intro section__intro--on-navy">فريق التأطير والتنسيق والعرض المحوري.</p>
+
+      <div class="speakers-grid">
+        {% for sp in speakers %}
+        <article class="speaker-card">
+          {% if sp.photo %}
+          <img class="speaker-card__photo" src="{{ url_for('static', filename='images/' ~ sp.photo) }}" alt="{{ sp.name }}">
+          {% else %}
+          <div class="speaker-card__avatar">{{ sp.initial }}</div>
+          {% endif %}
+          <h3 class="speaker-card__name">{{ sp.name }}</h3>
+          <p class="speaker-card__role">{{ sp.role }}</p>
+          <p class="speaker-card__bio">{{ sp.bio }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- REGISTRATION -->
+  <section id="register" class="section section--light">
+    <div class="section__inner section__inner--narrow">
+      <h2 class="section__title">التسجيل في اليوم الدراسي</h2>
+      <p class="section__intro">يرجى تعبئة البيانات التالية لتأكيد مشاركتكم.</p>
+
+      <form id="registerForm" class="reg-form" novalidate>
+        <div class="reg-form__row">
+          <label for="full_name">الاسم الكامل *</label>
+          <input type="text" id="full_name" name="full_name" required>
+        </div>
+        <div class="reg-form__row">
+          <label for="institution">المؤسسة / الوظيفة</label>
+          <input type="text" id="institution" name="institution">
+        </div>
+        <div class="reg-form__row">
+          <label for="email">البريد الإلكتروني *</label>
+          <input type="email" id="email" name="email" required>
+        </div>
+        <div class="reg-form__row">
+          <label for="phone">الهاتف</label>
+          <input type="tel" id="phone" name="phone">
+        </div>
+        <div class="reg-form__row">
+          <label for="workshop">الورشة المفضلة</label>
+          <select id="workshop" name="workshop">
+            {% for w in workshops %}
+            <option value="{{ w }}">{{ w }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn--gold btn--full">تأكيد التسجيل</button>
+        <p class="reg-form__error" id="formError"></p>
+      </form>
+
+      <div class="confirmation" id="confirmation" hidden>
+        <div class="confirmation__check">✓</div>
+        <p class="confirmation__text" id="confirmationText"></p>
+      </div>
+
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-link">
+        فضاء الإدارة — لائحة الحضور
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <img src="{{ url_for('static', filename='images/logo_riyada.jpg') }}" alt="شعار الريادة للتربية والتعليم" class="footer__logo">
+  <p>{{ event_directorate }} — المدرسة الجماعاتية أبي الحسن الشاذلي</p>
+</footer>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول — فضاء الإدارة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Markazi+Text:wght@500;600;700&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <section class="admin-login">
+    <div class="admin-login__card">
+      <h1 class="admin-login__title">فضاء الإدارة</h1>
+      <p class="admin-login__subtitle">أدخل كلمة السر للاطلاع على لائحة الحضور.</p>
+
+      <form method="POST" class="reg-form">
+        <div class="reg-form__row">
+          <label for="password">كلمة السر</label>
+          <input type="password" id="password" name="password" required autofocus>
+        </div>
+        {% if error %}
+        <p class="reg-form__error">{{ error }}</p>
+        {% endif %}
+        <button type="submit" class="btn btn--gold btn--full">دخول</button>
+      </form>
+
+      <a href="{{ url_for('index') }}#register" class="admin-login__back">عودة إلى الصفحة الرئيسية</a>
+    </div>
+  </section>
+</body>
+</html>
