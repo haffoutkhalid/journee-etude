@@ -9,7 +9,7 @@ from filelock import FileLock
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
-from werkzeug.security import check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 import csv
 import io
 import os
@@ -17,15 +17,12 @@ import re
 
 app = Flask(__name__)
 
-# ---------------------------------------------------------------------------
-# 🔒 الإعدادات الحساسة (قيم افتراضية مدمجة لتعمل على Render مباشرة)
-# ---------------------------------------------------------------------------
+# 🔒 إصلاح مشكلة IP في Render (لكي لا يُحظر الجميع بسبب خادم وسيط)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# 🔒 الإعدادات الحساسة (قيم افتراضية مدمجة لتعمل مباشرة)
 app.secret_key = os.environ.get("SECRET_KEY", "Riyada2026@SecretKey123")
 
-ADMIN_PASSWORD_HASH = os.environ.get(
-    "ADMIN_PASSWORD_HASH",
-    "pbkdf2:sha256:600000$3t6wY9qL$92e8d4c2b6a0f8e4d2c6b0a8f4e2d6c0b8a4f2e6d0c8b4a2f6e0d8c4b2a6f0e"
-)
 # 🔒 كوكي الجلسة محصّن + مدة صلاحية محدودة
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -45,7 +42,8 @@ limiter = Limiter(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "inscriptions.csv")
-DATA_LOCK = FileLock(DATA_FILE + ".lock", timeout=10)
+# استخدام /tmp لضمان عدم حدوث خطأ في الصلاحيات على Render
+DATA_LOCK = FileLock("/tmp/inscriptions.lock", timeout=10)
 
 CSV_HEADERS = [
     "التاريخ والوقت", "الاسم الكامل", "المؤسسة/الوظيفة",
@@ -57,9 +55,6 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^[0-9+\-\s()]{6,20}$")
 
 
-# ---------------------------------------------------------------------------
-# 🔒 أدوات مساعدة
-# ---------------------------------------------------------------------------
 def sanitize_cell(value) -> str:
     if value is None:
         return ""
@@ -75,6 +70,7 @@ def login_required(view):
         if not session.get("is_admin"):
             return redirect(url_for("admin_login"))
         return view(*args, **kwargs)
+
     return wrapped
 
 
@@ -87,9 +83,6 @@ def read_registrations():
     return rows[1:] if rows else []
 
 
-# ---------------------------------------------------------------------------
-# محتوى الصفحة
-# ---------------------------------------------------------------------------
 EVENT_DATE_ISO = "2026-11-07T09:00:00"
 EVENT_LOCATION = "المدرسة الجماعاتية أبي الحسن الشاذلي — العالم القروي"
 EVENT_DIRECTORATE = "المديرية الإقليمية الفنيدق المضيق"
@@ -102,6 +95,7 @@ WORKSHOPS = [
     "مفتش تربوي",
 ]
 WORKSHOPS_NORMALIZED = {w.strip() for w in WORKSHOPS}
+
 
 def validate_registration(full_name, institution, email, phone, workshop):
     if not full_name:
@@ -126,22 +120,17 @@ def validate_registration(full_name, institution, email, phone, workshop):
 
 
 PROGRAM = [
-    {"time": "08:30 – 08:50", "title": "الاستقبال والتسجيل",
-     "desc": "استقبال المشاركين ........"},
-    {"time": "08:50 – 09:10", "title": "الافتتاح الرسمي",
-     "desc": "كلمة إدارة المدرسة الجماعاتية أبي الحسن الشاذلي ."},
+    {"time": "08:30 – 08:50", "title": "الاستقبال والتسجيل", "desc": "استقبال المشاركين ........"},
+    {"time": "08:50 – 09:10", "title": "الافتتاح الرسمي", "desc": "كلمة إدارة المدرسة الجماعاتية أبي الحسن الشاذلي ."},
     {"time": "09:10 – 09:40", "title": "الإطار العام لمرحلة الدعم المكثف",
-     "desc": "عرض تأطيري للسيد المفتش التربوي أحمد دعلي: الدعم  المكثف، الروائز التشخيصية والبعدية، أهداف مدارس الريادة."},
+     "desc": "عرض تأطيري للسيد المفتش التربوي أحمد دعلي: الدعم المكثف، الروائز التشخيصية والبعدية، أهداف مدارس الريادة."},
     {"time": "09:40 – 10:25", "title": "تجربة أبي الحسن الشاذلي: سنتان من الممارسة",
      "desc": "عرض محوري للطاقم التربوي: السياق المجالي، التشخيص الموضعي، تجميع المتعلمين حسب المستوى، ونتائج الروائز."},
-    {"time": "10:25 – 10:45", "title": "استراحة ونقاش",
-     "desc": "استراحة شاي وتبادل حر حول العرض المحوري."},
-    {"time": "10:45 – 12:15", "title": "ورشات عمل موازية",
-     "desc": ".............................. ."},
+    {"time": "10:25 – 10:45", "title": "استراحة ونقاش", "desc": "استراحة شاي وتبادل حر حول العرض المحوري."},
+    {"time": "10:45 – 12:15", "title": "ورشات عمل موازية", "desc": ".............................. ."},
     {"time": "12:15 – 12:45", "title": "التركيب والتوصيات",
      "desc": "عرض خلاصات الورشات وصياغةتوصيات، بتنسيق الأستاذة لبنى الدراوي."},
-    {"time": "12:45 – 13:00", "title": "التقييم والختام",
-     "desc": "تقييم اليوم الدراسي وكلمة ختامية."},
+    {"time": "12:45 – 13:00", "title": "التقييم والختام", "desc": "تقييم اليوم الدراسي وكلمة ختامية."},
 ]
 
 GALLERY = [
@@ -152,38 +141,25 @@ GALLERY = [
 ]
 
 SPEAKERS = [
-    {"initial": "أ", "photo": "speaker_daali.jpg",
-     "name": "السيد أحمد دعلي",
+    {"initial": "أ", "photo": "speaker_daali.jpg", "name": "السيد أحمد دعلي",
      "role": "مفتش تربوي — تأطير اليوم الدراسي",
      "bio": "يؤطر اليوم الدراسي ويقدم الإطار العام لمرحلة الدعم المكثف بمؤسسات الريادة، من التشخيص الموضعي إلى بناء خطط الدعم."},
-    {"initial": "ل", "photo": "speaker_draoui.jpg",
-     "name": "الأستاذة لبنى الدراوي",
-     "role": "تنسيق اليوم الدراسي",
+    {"initial": "ل", "photo": "speaker_draoui.jpg", "name": "الأستاذة لبنى الدراوي", "role": "تنسيق اليوم الدراسي",
      "bio": "تتولى تنسيق فقرات اليوم الدراسي وتسيير النقاش حول تجربة المدرسة الجماعاتية أبي الحسن الشاذلي."},
-    {"initial": "م", "photo": None,
-     "name": "المتدخلون",
-     "role": "حوض الفنيدق",
-     "bio": "تقديم  مداخلات تتعلق بمرحلة  الدعم المكثف."},
+    {"initial": "م", "photo": None, "name": "المتدخلون", "role": "حوض الفنيدق",
+     "bio": "تقديم مداخلات تتعلق بمرحلة الدعم المكثف."},
 ]
 
 
-# ---------------------------------------------------------------------------
-# المسارات
-# ---------------------------------------------------------------------------
 @app.after_request
 def security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
-    resp.headers["Referrer-Policy"] = "same-origin"
+    # 🔒 تعديل مهم جداً: same-origin بدلاً من no-referrer لتجنب خطأ 400 في Render
     resp.headers["Referrer-Policy"] = "same-origin"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "img-src 'self' data:; "
-        "style-src 'self' 'unsafe-inline'; "
-        "script-src 'self'; "
-        "form-action 'self'; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'"
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'"
     )
     return resp
 
@@ -191,16 +167,10 @@ def security_headers(resp):
 @app.route("/")
 def index():
     return render_template(
-        "index.html",
-        event_date_iso=EVENT_DATE_ISO,
-        event_location=EVENT_LOCATION,
-        event_directorate=EVENT_DIRECTORATE,
-        proposals_deadline=PROPOSALS_DEADLINE,
-        contact_phone=CONTACT_PHONE,
-        program=PROGRAM,
-        speakers=SPEAKERS,
-        workshops=WORKSHOPS,
-        gallery=GALLERY,
+        "index.html", event_date_iso=EVENT_DATE_ISO, event_location=EVENT_LOCATION,
+        event_directorate=EVENT_DIRECTORATE, proposals_deadline=PROPOSALS_DEADLINE,
+        contact_phone=CONTACT_PHONE, program=PROGRAM, speakers=SPEAKERS,
+        workshops=WORKSHOPS, gallery=GALLERY,
     )
 
 
@@ -236,22 +206,24 @@ def register():
                 writer.writerow(CSV_HEADERS)
             writer.writerow(row)
 
-    return jsonify({
-        "ok": True,
-        "message": "تم تسجيل مشاركتك بنجاح في اليوم الدراسي. نراكم بالموعد!",
-    })
+    return jsonify({"ok": True, "message": "تم تسجيل مشاركتك بنجاح في اليوم الدراسي. نراكم بالموعد!"})
 
 
+# 🔒 هنا قمنا بتعطيل الـ CSRF لصفحة الدخول، وجعل كلمة السر مباشرة
 @app.route("/admin/login", methods=["GET", "POST"])
 @limiter.limit("5/minute", methods=["POST"])
+@csrf.exempt
 def admin_login():
     error = None
     if request.method == "POST":
         password = request.form.get("password", "")
-        if check_password_hash(ADMIN_PASSWORD_HASH, password):
+
+        # دخول مباشر بكلمة السر
+        if password == "Chadhili2026":
             session.permanent = True
             session["is_admin"] = True
             return redirect(url_for("admin_dashboard"))
+
         error = "كلمة السر غير صحيحة."
     return render_template("admin_login.html", error=error)
 
@@ -272,11 +244,7 @@ def admin_dashboard():
             key = row[5] or "(غير محدد)"
             workshop_counts[key] = workshop_counts.get(key, 0) + 1
     return render_template(
-        "admin.html",
-        headers=CSV_HEADERS,
-        rows=rows,
-        total=len(rows),
-        workshop_counts=workshop_counts,
+        "admin.html", headers=CSV_HEADERS, rows=rows, total=len(rows), workshop_counts=workshop_counts,
     )
 
 
@@ -284,7 +252,6 @@ def admin_dashboard():
 @login_required
 def admin_export():
     rows = read_registrations()
-
     buf = io.StringIO()
     buf.write("\ufeff")
     writer = csv.writer(buf)
@@ -295,14 +262,10 @@ def admin_export():
     ascii_name = "attendance.csv"
     utf8_name = quote("لائحة_الحضور.csv")
     return Response(
-        buf.getvalue(),
-        mimetype="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition":
-                f"attachment; filename={ascii_name}; filename*=UTF-8''{utf8_name}",
-        },
+        buf.getvalue(), mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={ascii_name}; filename*=UTF-8''{utf8_name}"},
     )
 
 
 if __name__ == "__main__":
-    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
+    app.run(debug=False)
