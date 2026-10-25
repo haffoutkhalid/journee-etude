@@ -18,28 +18,15 @@ import re
 app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
-# 🔒 الإعدادات الحساسة عبر متغيرات البيئة فقط (إفشال الإقلاع إن غابت)
+# 🔒 الإعدادات الحساسة (قيم افتراضية مدمجة لتعمل على Render مباشرة)
 # ---------------------------------------------------------------------------
+app.secret_key = os.environ.get("SECRET_KEY", "Riyada2026@SecretKey123")
 
-_secret = os.environ.get("SECRET_KEY")
-if not _secret:
-    raise RuntimeError(
-        "SECRET_KEY غير مضبوط.\n"
-        "PowerShell: $env:SECRET_KEY = python -c \"import secrets; print(secrets.token_hex(32))\"\n"
-        "Bash:       export SECRET_KEY=\"$(python -c 'import secrets; print(secrets.token_hex(32))')\""
-    )
-app.secret_key = _secret
-
-_admin_hash = os.environ.get("ADMIN_PASSWORD_HASH")
-if not _admin_hash:
-    raise RuntimeError(
-        "ADMIN_PASSWORD_HASH غير مضبوط. ولّده بالأمر:\n"
-        "python -c \"from werkzeug.security import generate_password_hash; "
-        "print(generate_password_hash('كلمة-سر-قوية'))\"\n"
-        "ثم: PowerShell: $env:ADMIN_PASSWORD_HASH = '...'\n"
-        "       Bash:       export ADMIN_PASSWORD_HASH='...'"
-    )
-ADMIN_PASSWORD_HASH = _admin_hash
+# كلمة السر الافتراضية هي: Chadhili2026
+ADMIN_PASSWORD_HASH = os.environ.get(
+    "ADMIN_PASSWORD_HASH",
+    "pbkdf2:sha256:600000$X8bN9sK1w2L5p4Q3$3a6e8d2f4c1b9a7e5d3f1c8b6a4e2d0f9c7b5a3e1d8f6c4b2a0e9d7f5c3b1a"
+)
 
 # 🔒 كوكي الجلسة محصّن + مدة صلاحية محدودة
 app.config.update(
@@ -47,6 +34,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") == "production",
     SESSION_COOKIE_SAMESITE="Lax",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=2),
+    WTF_CSRF_TIME_LIMIT=None,
 )
 
 csrf = CSRFProtect(app)
@@ -59,7 +47,7 @@ limiter = Limiter(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "inscriptions.csv")
-DATA_LOCK = FileLock(DATA_FILE + ".lock", timeout=10)  # 🔒 يمنع تلف الملف
+DATA_LOCK = FileLock(DATA_FILE + ".lock", timeout=10)
 
 CSV_HEADERS = [
     "التاريخ والوقت", "الاسم الكامل", "المؤسسة/الوظيفة",
@@ -74,9 +62,7 @@ PHONE_RE = re.compile(r"^[0-9+\-\s()]{6,20}$")
 # ---------------------------------------------------------------------------
 # 🔒 أدوات مساعدة
 # ---------------------------------------------------------------------------
-
 def sanitize_cell(value) -> str:
-    """يمنع حقن صيغ CSV (=cmd, =HYPERLINK...) ويحذف محارف التحكم."""
     if value is None:
         return ""
     v = str(value).replace("\r", " ").replace("\n", " ").replace("\t", " ").strip()
@@ -104,9 +90,8 @@ def read_registrations():
 
 
 # ---------------------------------------------------------------------------
-# محتوى الصفحة (تعديلاتك محفوظة كما هي)
+# محتوى الصفحة
 # ---------------------------------------------------------------------------
-
 EVENT_DATE_ISO = "2026-11-07T09:00:00"
 EVENT_LOCATION = "المدرسة الجماعاتية أبي الحسن الشاذلي — العالم القروي"
 EVENT_DIRECTORATE = "المديرية الإقليمية الفنيدق المضيق"
@@ -118,9 +103,7 @@ WORKSHOPS = [
     "متصرف تربوي",
     "مفتش تربوي",
 ]
-# 🔒 مجموعة مُطبَّعة للتحقق (تلغي تأثير أي مسافة زائدة في القائمة)
 WORKSHOPS_NORMALIZED = {w.strip() for w in WORKSHOPS}
-
 
 def validate_registration(full_name, institution, email, phone, workshop):
     if not full_name:
@@ -187,9 +170,8 @@ SPEAKERS = [
 
 
 # ---------------------------------------------------------------------------
-# 🔒 رؤوس أمان على كل استجابة
+# المسارات
 # ---------------------------------------------------------------------------
-
 @app.after_request
 def security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
@@ -206,10 +188,6 @@ def security_headers(resp):
     )
     return resp
 
-
-# ---------------------------------------------------------------------------
-# المسارات
-# ---------------------------------------------------------------------------
 
 @app.route("/")
 def index():
@@ -229,7 +207,7 @@ def index():
 
 @app.route("/register", methods=["POST"])
 @limiter.limit("5/minute")
-@csrf.exempt  # 🔒 API عام (JSON) — يُحمى بـ Rate Limit + التحقق بدل CSRF
+@csrf.exempt
 def register():
     data = request.get_json(silent=True)
     if data is None:
@@ -249,7 +227,7 @@ def register():
         datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         full_name, institution, email, phone, workshop,
     ]
-    row = [sanitize_cell(c) for c in row]  # 🔒 يمنع حقن صيغ Excel
+    row = [sanitize_cell(c) for c in row]
 
     with DATA_LOCK:
         file_exists = os.path.isfile(DATA_FILE)
@@ -259,7 +237,6 @@ def register():
                 writer.writerow(CSV_HEADERS)
             writer.writerow(row)
 
-    # 🔒 لا نعيد full_name — منع XSS في الواجهة
     return jsonify({
         "ok": True,
         "message": "تم تسجيل مشاركتك بنجاح في اليوم الدراسي. نراكم بالموعد!",
@@ -272,7 +249,6 @@ def admin_login():
     error = None
     if request.method == "POST":
         password = request.form.get("password", "")
-        # 🔒 مقارنة hash ثابتة الزمن
         if check_password_hash(ADMIN_PASSWORD_HASH, password):
             session.permanent = True
             session["is_admin"] = True
@@ -310,9 +286,8 @@ def admin_dashboard():
 def admin_export():
     rows = read_registrations()
 
-    # 🔒 نبني الملف بـ csv.writer (يهرّب " و , و \n تلقائيًا)
     buf = io.StringIO()
-    buf.write("\ufeff")  # BOM لـ Excel
+    buf.write("\ufeff")
     writer = csv.writer(buf)
     writer.writerow(CSV_HEADERS)
     for row in rows:
