@@ -22,12 +22,10 @@ app = Flask(__name__)
 # ---------------------------------------------------------------------------
 app.secret_key = os.environ.get("SECRET_KEY", "Riyada2026@SecretKey123")
 
-# كلمة السر الافتراضية هي: Chadhili2026
 ADMIN_PASSWORD_HASH = os.environ.get(
     "ADMIN_PASSWORD_HASH",
-    "pbkdf2:sha256:600000$X8bN9sK1w2L5p4Q3$3a6e8d2f4c1b9a7e5d3f1c8b6a4e2d0f9c7b5a3e1d8f6c4b2a0e9d7f5c3b1a"
+    "pbkdf2:sha256:600000$3t6wY9qL$92e8d4c2b6a0f8e4d2c6b0a8f4e2d6c0b8a4f2e6d0c8b4a2f6e0d8c4b2a6f0e"
 )
-
 # 🔒 كوكي الجلسة محصّن + مدة صلاحية محدودة
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -176,6 +174,7 @@ SPEAKERS = [
 def security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "same-origin"
     resp.headers["Referrer-Policy"] = "same-origin"
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
