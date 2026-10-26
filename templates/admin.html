@@ -59,7 +59,6 @@
           <td>
             <form method="POST" action="{{ url_for('admin_delete', row_index=loop.index0) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذا المسجل؟ لا يمكن التراجع عن هذه الخطوة.');" style="margin: 0;">
               <!-- إذا كنت تستخدم حماية CSRF (Flask-WTF)، أزل التعليق عن السطر التالي: -->
-              <!-- <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
               <button type="submit" style="background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold;">
                 حذف
               </button>
