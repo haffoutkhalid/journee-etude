@@ -4,21 +4,35 @@ from flask import (
 )
 from datetime import datetime
 from functools import wraps
-import csv
+from flask_sqlalchemy import SQLAlchemy
 import os
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "Riyada2026@chadhili@ecole")
+app.secret_key = "Riyada2026@chadhili@ecole"
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, "inscriptions.csv")
+# 🔒 إعدادات قاعدة البيانات (تعمل بـ SQLite محلياً، وبـ PostgreSQL على Render)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///inscriptions.db').replace(
+    "postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Chadhili2026")
+ADMIN_PASSWORD = "Chadhili2026"
 
-CSV_HEADERS = [
-    "التاريخ والوقت", "الاسم الكامل", "المؤسسة/الوظيفة",
-    "البريد الإلكتروني", "الهاتف", "الورشة المختارة",
-]
+
+# 🔒 تعريف جدول المسجلين في قاعدة البيانات
+class Registration(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.String(50))
+    full_name = db.Column(db.String(120))
+    institution = db.Column(db.String(160))
+    email = db.Column(db.String(120))
+    phone = db.Column(db.String(30))
+    workshop = db.Column(db.String(120))
+
+
+# إنشاء الجدول عند تشغيل التطبيق
+with app.app_context():
+    db.create_all()
 
 
 def login_required(view):
@@ -31,17 +45,8 @@ def login_required(view):
     return wrapped
 
 
-def read_registrations():
-    if not os.path.isfile(DATA_FILE):
-        return []
-    with open(DATA_FILE, newline="", encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-    return rows[1:] if rows else []
-
-
 # ---------------------------------------------------------------------------
-# محتوى الصفحة (كما هو في كودك تماماً)
+# محتوى الصفحة (كما هو)
 # ---------------------------------------------------------------------------
 EVENT_DATE_ISO = "2026-11-07T09:00:00"
 EVENT_LOCATION = "المدرسة الجماعاتية أبي الحسن الشاذلي — العالم القروي"
@@ -109,12 +114,14 @@ def register():
     if not full_name or not email:
         return jsonify({"ok": False, "error": "الرجاء تعبئة الاسم الكامل والبريد الإلكتروني."}), 400
 
-    file_exists = os.path.isfile(DATA_FILE)
-    with open(DATA_FILE, "a", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(CSV_HEADERS)
-        writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M"), full_name, institution, email, phone, workshop])
+    # 🔒 حفظ في قاعدة البيانات
+    new_reg = Registration(
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        full_name=full_name, institution=institution,
+        email=email, phone=phone, workshop=workshop
+    )
+    db.session.add(new_reg)
+    db.session.commit()
 
     return jsonify(
         {"ok": True, "message": f"شكرًا {full_name}، تم تسجيل مشاركتك بنجاح في اليوم الدراسي. نراكم بالموعد!"})
@@ -141,38 +148,34 @@ def admin_logout():
 @app.route("/admin")
 @login_required
 def admin_dashboard():
-    rows = read_registrations()
+    # 🔒 جلب البيانات من قاعدة البيانات
+    rows = Registration.query.all()
     workshop_counts = {}
     for row in rows:
-        if len(row) >= 6:
-            workshop_counts[row[5]] = workshop_counts.get(row[5], 0) + 1
-    return render_template("admin.html", headers=CSV_HEADERS, rows=rows, total=len(rows),
+        key = row.workshop or "(غير محدد)"
+        workshop_counts[key] = workshop_counts.get(key, 0) + 1
+
+    # تحويل البيانات لتناسب ملف الـ HTML الحالي
+    formatted_rows = [[r.timestamp, r.full_name, r.institution, r.email, r.phone, r.workshop] for r in rows]
+
+    return render_template("admin.html",
+                           headers=["التاريخ والوقت", "الاسم الكامل", "المؤسسة/الوظيفة", "البريد الإلكتروني", "الهاتف",
+                                    "الورشة المختارة"], rows=formatted_rows, total=len(rows),
                            workshop_counts=workshop_counts)
 
 
-# 🔒 مسار جديد لحذف المسجلين
 @app.route("/admin/delete/<int:row_index>", methods=["POST"])
 @login_required
 def admin_delete(row_index):
-    if not os.path.isfile(DATA_FILE):
-        return redirect(url_for("admin_dashboard"))
-
-    with open(DATA_FILE, newline="", encoding="utf-8-sig") as f:
-        rows = list(csv.reader(f))
-
-    if len(rows) > 1:
-        headers = rows[0]
-        data_rows = rows[1:]
-
-        # التأكد من أن الرقم صحيح قبل الحذف
-        if 0 <= row_index < len(data_rows):
-            data_rows.pop(row_index)
-
-        # إعادة حفظ الملف بعد الحذف
-        with open(DATA_FILE, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
-            writer.writerows(data_rows)
+    # 🔒 الحذف من قاعدة البيانات (row_index هنا يمثل id المسجل)
+    # ملاحظة: في ملف admin.html نستخدم loop.index0 وهو يبدأ من 0،
+    # لذلك سنحتاج لجلب المسجل حسب ترتيبه أو تعديل الـ HTML ليرسل الـ ID الحقيقي.
+    # للتبسيط، سنحذف بالسطر:
+    rows = Registration.query.all()
+    if 0 <= row_index < len(rows):
+        reg_to_delete = rows[row_index]
+        db.session.delete(reg_to_delete)
+        db.session.commit()
 
     return redirect(url_for("admin_dashboard"))
 
@@ -180,17 +183,17 @@ def admin_delete(row_index):
 @app.route("/admin/export")
 @login_required
 def admin_export():
-    rows = read_registrations()
+    rows = Registration.query.all()
 
     def generate():
         yield "\ufeff"
-        yield ",".join(CSV_HEADERS) + "\n"
-        for row in rows:
-            yield ",".join(f'"{cell}"' for cell in row) + "\n"
+        yield "التاريخ والوقت,الاسم الكامل,المؤسسة/الوظيفة,البريد الإلكتروني,الهاتف,الورشة المختارة\n"
+        for r in rows:
+            yield f'"{r.timestamp}","{r.full_name}","{r.institution}","{r.email}","{r.phone}","{r.workshop}"\n'
 
     return Response(generate(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=لائحة_الحضور.csv"})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
