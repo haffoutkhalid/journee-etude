@@ -10,9 +10,14 @@ import os
 app = Flask(__name__)
 app.secret_key = "Riyada2026@chadhili@ecole"
 
-# 🔒 إعدادات قاعدة البيانات (تعمل بـ SQLite محلياً، وبـ PostgreSQL على Render)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///inscriptions.db').replace(
-    "postgres://", "postgresql://", 1)
+# 🔒 إعدادات قاعدة البيانات (تم إصلاح المشكلة هنا)
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///inscriptions.db')
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -114,7 +119,6 @@ def register():
     if not full_name or not email:
         return jsonify({"ok": False, "error": "الرجاء تعبئة الاسم الكامل والبريد الإلكتروني."}), 400
 
-    # 🔒 حفظ في قاعدة البيانات
     new_reg = Registration(
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
         full_name=full_name, institution=institution,
@@ -148,14 +152,12 @@ def admin_logout():
 @app.route("/admin")
 @login_required
 def admin_dashboard():
-    # 🔒 جلب البيانات من قاعدة البيانات
     rows = Registration.query.all()
     workshop_counts = {}
     for row in rows:
         key = row.workshop or "(غير محدد)"
         workshop_counts[key] = workshop_counts.get(key, 0) + 1
 
-    # تحويل البيانات لتناسب ملف الـ HTML الحالي
     formatted_rows = [[r.timestamp, r.full_name, r.institution, r.email, r.phone, r.workshop] for r in rows]
 
     return render_template("admin.html",
@@ -167,10 +169,6 @@ def admin_dashboard():
 @app.route("/admin/delete/<int:row_index>", methods=["POST"])
 @login_required
 def admin_delete(row_index):
-    # 🔒 الحذف من قاعدة البيانات (row_index هنا يمثل id المسجل)
-    # ملاحظة: في ملف admin.html نستخدم loop.index0 وهو يبدأ من 0،
-    # لذلك سنحتاج لجلب المسجل حسب ترتيبه أو تعديل الـ HTML ليرسل الـ ID الحقيقي.
-    # للتبسيط، سنحذف بالسطر:
     rows = Registration.query.all()
     if 0 <= row_index < len(rows):
         reg_to_delete = rows[row_index]
